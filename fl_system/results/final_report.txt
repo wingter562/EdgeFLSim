@@ -1,0 +1,40 @@
+============================================================
+Edge Intelligence Simulation Report
+============================================================
+
+Rounds: 10
+Final Accuracy: 94.56%
+Best Accuracy: 94.56%
+Total Energy: 3107.88 J
+Total Time: 3408.33 s
+Average Fairness: 1.00
+
+Configuration:
+  base_station_mode: multi
+  num_edge_servers: 3
+  num_devices: 10
+  num_rounds: 10
+  local_epochs: 3
+  batch_size: 64
+  learning_rate: 0.01
+  model_size_bits: 2500000.0
+  gpu_ratio: 0.5
+  selection_ratio: 0.5
+  selection_strategy: hybrid
+  aggregation_method: fedavg
+  cpu_freq_range: (1.0, 3.0)
+  gpu_freq_range: (0.8, 1.8)
+  bandwidth_range: (100000.0, 500000.0)
+  power_range: (0.5, 1.5)
+  compute_capacity_range: (0.5, 1.5)
+  dynamic_fluctuation: 0.1
+  k_cpu_range: (1e-28, 1e-27)
+  k_gpu_range: (1e-28, 5e-28)
+  energy_weight: 0.7
+  accuracy_weight: 0.3
+  data_iid_ratio: 0.8
+  class_imbalance_factor: 0.3
+  seed: 42
+  use_cuda: True
+  save_checkpoints: True
+  visualize: True

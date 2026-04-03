@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>联邦学习仿真系统 - 边缘智算架构演示</title>
+    <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+    <script src="{{ url_for('static', filename='js/echarts.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+    <style>
+        body {
+            background: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border: none;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            font-weight: bold;
+            border-radius: 12px 12px 0 0;
+            padding: 12px 20px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .status-running {
+            background-color: #28a745;
+            color: white;
+        }
+        .status-idle {
+            background-color: #6c757d;
+            color: white;
+        }
+        .status-complete {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            border: none;
+            border-radius: 30px;
+            padding: 8px 20px;
+            font-weight: bold;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0056b3, #003d80);
+        }
+        .chart {
+            height: 280px;
+            margin-bottom: 20px;
+        }
+        table {
+            font-size: 0.85rem;
+        }
+        .svg-arch {
+            background: #fff;
+            border-radius: 8px;
+            padding: 10px;
+            min-height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        svg {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- 左侧控制面板 -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    ⚙️ 仿真参数配置
+                </div>
+                <div class="card-body">
+                    <form id="config-form">
+                        <div class="mb-3">
+                            <label class="form-label">基站模式</label>
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="baseStationMode" id="singleMode" value="single" checked>
+                                    <label class="form-check-label" for="singleMode">单基站（中心直连设备）</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="baseStationMode" id="multiMode" value="multi">
+                                    <label class="form-check-label" for="multiMode">多基站（边缘服务器协同）</label>
+                                </div>
+                            </div>
+                            <small class="text-muted">多基站模式下，设备通过边缘服务器与中心通信</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">边缘服务器数量</label>
+                            <input type="number" class="form-control" id="num_edge_servers" value="2" min="1" max="10">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">边缘设备数量</label>
+                            <input type="number" class="form-control" id="num_devices" value="5" min="1" max="20">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">联邦学习轮次</label>
+                            <input type="number" class="form-control" id="num_rounds" value="10" min="1" max="100">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">本地批次大小</label>
+                            <input type="number" class="form-control" id="batch_size" value="64">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">学习率</label>
+                            <input type="number" step="0.001" class="form-control" id="learning_rate" value="0.01">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">本地训练轮数</label>
+                            <input type="number" class="form-control" id="local_epochs" value="3">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">设备选择策略</label>
+                            <select class="form-select" id="selection_strategy">
+                                <option value="random">随机</option>
+                                <option value="energy_aware">能量感知</option>
+                                <option value="capability_aware">能力感知</option>
+                                <option value="hybrid" selected>混合策略</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">全局聚合算法</label>
+                            <select class="form-select" id="aggregation_method">
+                                <option value="fedavg">FedAvg</option>
+                                <option value="fedavg_energy">能量加权FedAvg</option>
+                                <option value="fedprox">FedProx</option>
+                                <option value="qfed">q-FedAvg</option>
+                                <option value="capability_weighted">算力加权平均</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">GPU 设备比例 (0-1)</label>
+                            <input type="number" step="0.01" min="0" max="1" class="form-control" id="gpu_ratio" value="0.5">
+                            <small class="text-muted">0 表示全部 CPU，1 表示全部 GPU</small>
+                        </div>
+                        <button type="button" class="btn btn-primary w-100" id="startBtn">🚀 开始仿真</button>
+                        <div class="text-center mt-3">
+                            <span id="status-badge" class="status-badge status-idle">空闲</span>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 系统架构图 -->
+            <div class="card">
+                <div class="card-header">
+                    🏗️ 系统架构
+                </div>
+                <div class="card-body text-center svg-arch">
+                    <svg width="100%" height="300" viewBox="0 0 500 300" id="topologySvg"></svg>
+                </div>
+                <div class="card-footer text-muted small">
+                    根据所选基站模式动态展示拓扑结构
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧监控区域 -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    📊 实时监控
+                </div>
+                <div class="card-body">
+                    <div id="accuracyChart" class="chart"></div>
+                    <div id="energyChart" class="chart"></div>
+                    <div id="timeChart" class="chart"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    🖥️ 边缘设备状态
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0" id="device-table">
+                            <thead class="table-light">
+                                <tr><th>设备ID</th><th>类型</th><th>算力(GHz)</th><th>带宽(bps)</th><th>能耗系数</th><th>参与次数</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ========== 动态拓扑图绘制函数 ==========
+    function drawTopology(mode, numDevices, numEdgeServers) {
+        const svg = document.getElementById('topologySvg');
+        svg.innerHTML = ''; // 清空
+        const width = 500, height = 300;
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+        // 辅助函数：创建圆形节点
+        function createCircle(cx, cy, r, fill, text, textColor = 'white') {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', cx);
+            circle.setAttribute('cy', cy);
+            circle.setAttribute('r', r);
+            circle.setAttribute('fill', fill);
+            circle.setAttribute('stroke', '#333');
+            circle.setAttribute('stroke-width', '1.5');
+            g.appendChild(circle);
+            const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            txt.setAttribute('x', cx);
+            txt.setAttribute('y', cy + 5);
+            txt.setAttribute('text-anchor', 'middle');
+            txt.setAttribute('fill', textColor);
+            txt.setAttribute('font-size', '12');
+            txt.textContent = text;
+            g.appendChild(txt);
+            return g;
+        }
+
+        function createLine(x1, y1, x2, y2, color = '#ffc107', dash = '4') {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1);
+            line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2);
+            line.setAttribute('y2', y2);
+            line.setAttribute('stroke', color);
+            line.setAttribute('stroke-dasharray', dash);
+            return line;
+        }
+
+        if (mode === 'single') {
+            // 单基站：中心直连设备
+            const centerX = width/2, centerY = 70;
+            const centerR = 35;
+            svg.appendChild(createCircle(centerX, centerY, centerR, '#007bff', '中心服务器'));
+
+            const deviceRadius = 22;
+            const radius = 140;
+            for (let i = 0; i < numDevices; i++) {
+                const angle = (i / numDevices) * 2 * Math.PI - Math.PI/2;
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
+                svg.appendChild(createCircle(x, y, deviceRadius, '#28a745', `设备${i+1}`));
+                svg.appendChild(createLine(centerX, centerY, x, y));
+            }
+        } else {
+            // 多基站：中心 → 边缘服务器 → 设备
+            const centerX = width/2, centerY = 40;
+            const centerR = 30;
+            svg.appendChild(createCircle(centerX, centerY, centerR, '#007bff', '中心服务器'));
+
+            const esY = 130;
+            const esR = 28;
+            const esSpacing = 120;
+            const startX = (width - (numEdgeServers-1)*esSpacing) / 2;
+            const esPositions = [];
+
+            for (let i = 0; i < numEdgeServers; i++) {
+                const x = startX + i * esSpacing;
+                const y = esY;
+                esPositions.push({x, y});
+                svg.appendChild(createCircle(x, y, esR, '#17a2b8', `边缘服务器${i+1}`));
+                svg.appendChild(createLine(centerX, centerY, x, y));
+            }
+
+            const deviceRadius = 20;
+            const devicesPerEdge = Math.ceil(numDevices / numEdgeServers);
+            for (let i = 0; i < numEdgeServers; i++) {
+                const es = esPositions[i];
+                const startIdx = i * devicesPerEdge;
+                const endIdx = Math.min(startIdx + devicesPerEdge, numDevices);
+                const count = endIdx - startIdx;
+                const radius = 75;
+                for (let j = 0; j < count; j++) {
+                    const angle = (j / count) * 2 * Math.PI - Math.PI/2;
+                    const x = es.x + radius * Math.cos(angle);
+                    const y = es.y + radius * Math.sin(angle);
+                    svg.appendChild(createCircle(x, y, deviceRadius, '#28a745', `设备${startIdx + j + 1}`));
+                    svg.appendChild(createLine(es.x, es.y, x, y));
+                }
+            }
+        }
+    }
+
+    // ========== 页面初始化 ==========
+    document.addEventListener('DOMContentLoaded', function() {
+        // Socket.IO 连接
+        var socket = io({ transports: ['polling'] });
+
+        // 连接状态监控
+        socket.on('connect', function() {
+            console.log('✅ Socket.IO 连接成功！');
+            document.getElementById('status-badge').innerText = '连接成功';
+        });
+        socket.on('disconnect', function() {
+            console.log('❌ Socket.IO 连接断开');
+            document.getElementById('status-badge').innerText = '连接断开';
+        });
+        socket.on('connect_error', function(err) {
+            console.error('❌ Socket.IO 连接错误:', err);
+            document.getElementById('status-badge').innerText = '连接错误: ' + err.message;
+        });
+
+        // 初始化 ECharts
+        var accuracyChart = echarts.init(document.getElementById('accuracyChart'));
+        var energyChart = echarts.init(document.getElementById('energyChart'));
+        var timeChart = echarts.init(document.getElementById('timeChart'));
+
+        accuracyChart.setOption({
+            title: { text: '全局模型准确率', left: 'center' },
+            tooltip: { trigger: 'axis' },
+            xAxis: { name: '轮次', type: 'category', data: [] },
+            yAxis: { name: '准确率 (%)', min: 0, max: 100 },
+            series: [{ type: 'line', data: [], smooth: true, lineStyle: { color: '#007bff', width: 3 }, symbol: 'circle' }]
+        });
+        energyChart.setOption({
+            title: { text: '每轮总能耗', left: 'center' },
+            tooltip: { trigger: 'axis' },
+            xAxis: { name: '轮次', type: 'category', data: [] },
+            yAxis: { name: '能耗 (J)' },
+            series: [{ type: 'line', data: [], smooth: true, lineStyle: { color: '#dc3545', width: 3 }, symbol: 'circle' }]
+        });
+        timeChart.setOption({
+            title: { text: '每轮总时间', left: 'center' },
+            tooltip: { trigger: 'axis' },
+            xAxis: { name: '轮次', type: 'category', data: [] },
+            yAxis: { name: '时间 (秒)' },
+            series: [{ type: 'line', data: [], smooth: true, lineStyle: { color: '#28a745', width: 3 }, symbol: 'circle' }]
+        });
+
+        // 监听 round_update
+        socket.on('round_update', function(data) {
+            console.log('✅ 收到 round_update:', data);
+            var rounds = data.accuracy_history.map((_, idx) => idx + 1);
+            accuracyChart.setOption({ xAxis: { data: rounds }, series: [{ data: data.accuracy_history }] });
+            energyChart.setOption({ xAxis: { data: rounds }, series: [{ data: data.energy_history }] });
+            timeChart.setOption({ xAxis: { data: rounds }, series: [{ data: data.time_history }] });
+
+            var statusSpan = document.getElementById('status-badge');
+            statusSpan.className = 'status-badge status-running';
+            statusSpan.innerText = `运行中 - 第 ${data.round} 轮，准确率: ${data.accuracy.toFixed(2)}%`;
+
+            if (data.devices) {
+                var tbody = document.querySelector('#device-table tbody');
+                tbody.innerHTML = '';
+                data.devices.forEach(d => {
+                    var row = tbody.insertRow();
+                    row.insertCell(0).innerText = d.id;
+                    row.insertCell(1).innerText = d.type.toUpperCase();
+                    row.insertCell(2).innerText = d.freq.toFixed(2);
+                    row.insertCell(3).innerText = d.bandwidth.toExponential(2);
+                    row.insertCell(4).innerText = d.k.toExponential(2);
+                    row.insertCell(5).innerText = d.participation_count;
+                });
+            }
+        });
+
+        socket.on('simulation_complete', function() {
+            console.log('✅ 仿真完成');
+            var statusSpan = document.getElementById('status-badge');
+            statusSpan.className = 'status-badge status-complete';
+            statusSpan.innerText = '完成';
+            document.getElementById('startBtn').disabled = false;
+        });
+
+        // ========== 动态拓扑控制 ==========
+        const modeRadios = document.querySelectorAll('input[name="baseStationMode"]');
+        const edgeServersInput = document.getElementById('num_edge_servers');
+        const devicesInput = document.getElementById('num_devices');
+
+        function updateTopology() {
+            const mode = document.querySelector('input[name="baseStationMode"]:checked').value;
+            const numDevices = parseInt(devicesInput.value);
+            let numEdgeServers = parseInt(edgeServersInput.value);
+            if (mode === 'single') {
+                edgeServersInput.disabled = true;
+                numEdgeServers = 1;  // 单基站时拓扑图用1个边缘服务器展示？实际上我们只画中心直连，所以这个值用不到，但为了函数参数统一
+            } else {
+                edgeServersInput.disabled = false;
+            }
+            drawTopology(mode, numDevices, mode === 'multi' ? numEdgeServers : 0);
+        }
+
+        // 监听模式变化
+        modeRadios.forEach(radio => {
+            radio.addEventListener('change', updateTopology);
+        });
+        devicesInput.addEventListener('change', updateTopology);
+        edgeServersInput.addEventListener('change', function() {
+            if (document.querySelector('input[name="baseStationMode"]:checked').value === 'multi') {
+                updateTopology();
+            }
+        });
+
+        // 初始绘制
+        updateTopology();
+
+        // ========== 开始仿真按钮 ==========
+        document.getElementById('startBtn').addEventListener('click', function() {
+            var config = {
+                num_devices: parseInt(devicesInput.value),
+                num_rounds: parseInt(document.getElementById('num_rounds').value),
+                batch_size: parseInt(document.getElementById('batch_size').value),
+                learning_rate: parseFloat(document.getElementById('learning_rate').value),
+                local_epochs: parseInt(document.getElementById('local_epochs').value),
+                selection_strategy: document.getElementById('selection_strategy').value,
+                aggregation_method: document.getElementById('aggregation_method').value,
+                gpu_ratio: parseFloat(document.getElementById('gpu_ratio').value),
+                base_station_mode: document.querySelector('input[name="baseStationMode"]:checked').value,
+                num_edge_servers: parseInt(edgeServersInput.value)
+            };
+
+            // 清空图表
+            accuracyChart.setOption({ xAxis: { data: [] }, series: [{ data: [] }] });
+            energyChart.setOption({ xAxis: { data: [] }, series: [{ data: [] }] });
+            timeChart.setOption({ xAxis: { data: [] }, series: [{ data: [] }] });
+            document.querySelector('#device-table tbody').innerHTML = '';
+
+            var statusSpan = document.getElementById('status-badge');
+            statusSpan.className = 'status-badge status-running';
+            statusSpan.innerText = '启动中...';
+            document.getElementById('startBtn').disabled = true;
+
+            fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            }).then(response => response.json()).then(data => {
+                if (data.status !== 'started') {
+                    alert('启动失败: ' + data.error);
+                    document.getElementById('startBtn').disabled = false;
+                    statusSpan.className = 'status-badge status-idle';
+                    statusSpan.innerText = '空闲';
+                }
+            }).catch(err => {
+                alert('请求失败: ' + err);
+                document.getElementById('startBtn').disabled = false;
+                statusSpan.className = 'status-badge status-idle';
+                statusSpan.innerText = '空闲';
+            });
+        });
+    });
+</script>
+</body>
+</html>
