@@ -1,4 +1,6 @@
 import os
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 import threading
 import eventlet
 eventlet.monkey_patch()
@@ -8,12 +10,20 @@ from config import Config
 from simulation.runner import run_with_callback
 
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=300, ping_interval=30)
+latest_round_data = None
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    ping_timeout=600,      # 增加到10分钟
+    ping_interval=60       # 每分钟发一次心跳
+)
 
 simulation_status = {"running": False}
 
 def run_simulation(config):
     def callback(round_data):
+        global latest_round_data
+        latest_round_data = round_data
         socketio.emit('round_update', round_data)
     try:
         print("Starting simulation thread")
@@ -44,12 +54,18 @@ def start():
     config.local_epochs = data.get('local_epochs', config.local_epochs)
     config.gpu_ratio = data.get('gpu_ratio', config.gpu_ratio)
     config.base_station_mode = data.get('base_station_mode', config.base_station_mode)
-
+    config.model_name = data.get('model_name', config.model_name)
+    config.dataset_name = data.get('dataset_name', config.dataset_name)
     simulation_status["running"] = True
     thread = threading.Thread(target=run_simulation, args=(config,))
     thread.daemon = True
     thread.start()
     return jsonify({"status": "started"})
+
+@socketio.on('connect')
+def handle_connect():
+    if latest_round_data is not None:
+        emit('round_update', latest_round_data)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=5001)

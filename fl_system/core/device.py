@@ -7,13 +7,17 @@ import torch.optim as optim
 from typing import Dict, Tuple, List, Any
 from config import Config
 from models.lenet import LeNet5
-
+from models.model_factory import get_model
 class Device:
     """边缘设备建模：包含硬件特性、动态波动、能耗计算、本地训练"""
     def __init__(self, device_id: int, config: Config, device_type: str = None):
         self.id = device_id
         self.config = config
-
+        self.model_name = config.model_name
+        self.input_channels = getattr(config, 'input_channels', 1)
+        self.num_classes = getattr(config, 'num_classes', 10)
+        self.input_height = getattr(config, 'input_height', 32)
+        self.input_width = getattr(config, 'input_width', 32)
         if device_type is None:
             # 向后兼容：如果没有指定，随机选择
             self.device_type = random.choice(['cpu', 'gpu'])
@@ -87,7 +91,13 @@ class Device:
         self.update_dynamic_characteristics()
 
         # 复制全局模型
-        local_model = LeNet5().to(device)
+        local_model = get_model(
+            self.model_name,
+            input_channels=self.input_channels,
+            input_height=self.input_height,
+            input_width=self.input_width,
+            num_classes=self.num_classes
+        ).to(device)
         local_model.load_state_dict(global_model.state_dict())
 
         optimizer = optim.SGD(local_model.parameters(), lr=self.config.learning_rate)
@@ -140,8 +150,11 @@ class Device:
         download_time = self.config.model_size_bits / self.bandwidth   # 假设上下行对称
         total_time = compute_time + upload_time + download_time
 
-        # 能耗
-        total_energy = self.compute_energy(compute_time, upload_time, download_time)
+        # 能耗（分解计算）
+        e_comp = self.k * (self.freq ** 2) * compute_time
+        e_upload = self.power * upload_time
+        e_download = self.power * download_time
+        total_energy = e_comp + e_upload + e_download
 
         # 更新状态
         self.last_energy = total_energy
@@ -159,6 +172,8 @@ class Device:
             "upload_time": upload_time,
             "download_time": download_time,
             "total_time": total_time,
-            "energy": total_energy
+            "energy": total_energy,
+            "comm_energy": e_upload + e_download,  # 通信能耗
+            "comp_energy": e_comp,  # 计算能耗
         }
         return local_model.state_dict(), total_energy, total_time, metrics

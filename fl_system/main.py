@@ -8,7 +8,7 @@ def main():
     parser = argparse.ArgumentParser(description="Edge Intelligence Simulation System")
     parser.add_argument("--num_devices", type=int, default=5, help="Number of edge devices")
     parser.add_argument("--rounds", type=int, default=5, help="Number of federated rounds")
-    parser.add_argument("--batch_size", type=int, default=64, help="Local batch size")
+    parser.add_argument("--batch_size", type=int, default=256, help="Local batch size")
     parser.add_argument("--selection_strategy", type=str, default="hybrid",
                         choices=["random", "energy_aware", "capability_aware", "hybrid"])
     parser.add_argument("--aggregation_method", type=str, default="fedavg",

@@ -9,13 +9,19 @@ class Config:
         self.num_devices = 5          # 边缘设备数量（5~10台）
         self.num_rounds = 5          # 联邦学习轮次
         self.local_epochs = 3         # 本地训练轮数
-        self.batch_size = 64          # 本地训练批次大小
+        self.batch_size = 256          # 本地训练批次大小
         self.learning_rate = 0.01     # 学习率
         self.model_size_bits = 2.5e6  # 模型大小（比特），LeNet-5约2.5M比特
         self.gpu_ratio = 0.5  # GPU 设备所占比例（0.5 表示一半 GPU，一半 CPU）
+        # 模型与数据集配置
+        self.model_name = "lenet5"  # 模型名称: lenet5, simple_cnn
+        self.dataset_name = "mnist"  # 数据集名称: mnist, fashion_mnist, cifar10
+
+        # 网络流量统计开关
+        self.enable_traffic_log = True  # 是否记录每轮通信流量
 
         # 设备选择策略
-        self.selection_ratio = 0.5     # 每轮选择的设备比例
+        self.selection_ratio = 0.7     # 每轮选择的设备比例
         self.selection_strategy = "hybrid"  # random, energy_aware, capability_aware, hybrid
 
         # 聚合算法
@@ -38,8 +44,8 @@ class Config:
         self.accuracy_weight = 0.3    # 准确率权重
 
         # 数据异构性
-        self.data_iid_ratio = 0.8     # IID数据比例
-        self.class_imbalance_factor = 0.3  # 非IID偏斜程度
+        self.data_iid_ratio = 0.9     # IID数据比例
+        self.class_imbalance_factor = 0.6  # 非IID偏斜程度
 
         # 实验设置
         self.seed = 42
