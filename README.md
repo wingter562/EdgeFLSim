@@ -23,6 +23,9 @@ This project is a modeling and simulation platform designed for **Edge Intellige
 - **Deep Learning**: PyTorch, torchvision
 - **Data Processing**: NumPy, Pandas, scikit-learn
 
+## UI interface
+![Alt text](EdgeFLSim_UI.png "A screenshot of EdgeFLSim's UI interface")
+
 ## System Architecture
 
 > *For the detailed architecture diagram, please refer to the Mermaid description below or `docs/architecture.png` (rendered using [Mermaid Live Editor](https://mermaid.live/)).*
