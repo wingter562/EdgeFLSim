@@ -1,4 +1,70 @@
 # EdgeFLSim
+Modeling and Simulation Platform for Edge Intelligence Systems
+
+## Project Introduction
+
+This project is a modeling and simulation platform designed for **Edge Intelligence** and **Federated Learning**. The system supports fine-grained modeling of heterogeneous edge devices (CPU/GPU), Non-IID data partitioning, various device selection strategies, and global aggregation algorithms. It offers two deployment modes: single Base Station (BS) and multi-Base Station. The platform features real-time Web monitoring and interaction, allowing for dynamic parameter configuration, visualization of the training process, and export of experimental data (CSV, JSON).
+
+## Key Features
+
+- **Heterogeneous Device Modeling**: Supports mixed CPU/GPU architectures with dynamic fluctuations (±10%) in frequency, bandwidth, power, energy consumption coefficients.
+- **Full Federated Learning Pipeline**: Local training → Upload → Aggregation → Distribution. Supports single BS (two-tier) and multi-BS (three-tier, edge server collaboration).
+- **Device Selection Strategies**: Random, Energy-Aware, Capability-Aware, and Hybrid.
+- **Global Aggregation Algorithms**: FedAvg, Energy-Weighted FedAvg, FedProx, q-FedAvg, and Capability-Weighted Averaging.
+- **Data Heterogeneity Simulation**: Mixed IID / Non-IID partitioning with adjustable skew factors.
+- **Plug-and-Play Models & Datasets**: Supports models such as LeNet5, SimpleCNN, and ResNet18; supports datasets including MNIST, Fashion-MNIST, EMNIST, CIFAR-10, CIFAR-100, and SVHN.
+- **Real-time Web Monitoring**: Tracks accuracy, energy consumption, time, network traffic, and fairness curves; provides device status tables and detailed device-level metrics.
+- **Data Export**: Automatically generates CSV files (training results, device energy consumption, device details, traffic history) and JSON configurations.
+
+## Tech Stack
+
+- **Backend**: Python 3.11, PyTorch 2.0, Flask, Flask-SocketIO, Eventlet
+- **Frontend**: HTML5, Bootstrap 5, ECharts, Socket.IO
+- **Deep Learning**: PyTorch, torchvision
+- **Data Processing**: NumPy, Pandas, scikit-learn
+
+## System Architecture
+
+> *For the detailed architecture diagram, please refer to the Mermaid description below or `docs/architecture.png` (rendered using [Mermaid Live Editor](https://mermaid.live/)).*
+
+```mermaid
+graph TB
+    subgraph Frontend
+        WebUI[Web Interface<br>Bootstrap+ECharts]
+    end
+
+    subgraph Backend
+        Flask[Flask Server]
+        SocketIO[Socket.IO Real-time Communication]
+        Runner[Simulation Engine runner.py]
+        Logger[Logging Module logger.py]
+        Scheduler[Device Selection scheduler.py]
+        Aggregator[Aggregation Algorithm server.py]
+        EdgeServer[Edge Server edge_server.py]
+        Device[Device Model device.py]
+        ModelFactory[Model Factory model_factory.py]
+        DataFactory[Dataset Factory dataset_factory.py]
+    end
+
+    subgraph Storage
+        Results[(results/  CSV/JSON)]
+        Data[(data/ Dataset Cache)]
+    end
+
+    WebUI -- HTTP/WebSocket --> Flask
+    Flask --> Runner
+    Runner --> Scheduler
+    Runner --> Aggregator
+    Runner --> Device
+    Runner --> EdgeServer
+    Runner --> Logger
+    Logger --> Results
+    Device --> ModelFactory
+    Device --> DataFactory
+    DataFactory --> Data
+```
+
+# EdgeFLSim
 # 面向边缘智算系统的建模与仿真平台
 
 ## 项目简介
